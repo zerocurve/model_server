@@ -19,6 +19,7 @@ from ie_serving.config import CPU_EXTENSION, DEVICE, PLUGIN_DIR
 from openvino.inference_engine import IENetwork, IEPlugin
 import json
 from ie_serving.logger import get_logger
+import numpy as np
 
 logger = get_logger(__name__)
 
@@ -144,5 +145,8 @@ class IrEngine():
         if batch_size is not self.net.batch_size and self.batch_size == 0:
             self.net.batch_size = batch_size
             self.exec_net = self.plugin.load(network=self.net)
-        results = self.exec_net.infer(inputs=data)
+        #results = self.exec_net.infer(inputs=data)
+        np1 = np.ones((1,1000),dtype=int)
+        results = {}
+        results["resnet_v1_50/predictions/Reshape_1"] = np1
         return results

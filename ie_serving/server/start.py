@@ -29,6 +29,7 @@ from ie_serving.server.service import PredictionServiceServicer, \
     ModelServiceServicer
 from ie_serving.logger import get_logger
 from ie_serving.config import FILE_SYSTEM_POLL_WAIT_SECONDS
+from ie_serving.config import WORKERS
 from ie_serving.server.rest_service import create_rest_api
 
 logger = get_logger(__name__)
@@ -45,7 +46,7 @@ def initialize_tf():
     pass
 
 
-def serve(models, max_workers: int=1, port: int=9000):
+def serve(models, max_workers: int=WORKERS, port: int=9000):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers),
                          options=[('grpc.max_send_message_length', GIGABYTE),
                                   ('grpc.max_receive_message_length', GIGABYTE)

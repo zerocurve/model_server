@@ -29,7 +29,7 @@ LOGGING_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_PATH = os.getenv('LOG_PATH', None)
 FILE_SYSTEM_POLL_WAIT_SECONDS = float(
     os.getenv('FILE_SYSTEM_POLL_WAIT_SECONDS', 1))
-
+WORKERS = int(os.getenv('WORKERS', 1))
 
 MAPPING_CONFIG_FILENAME = 'mapping_config.json'
 
