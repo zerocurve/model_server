@@ -24,6 +24,7 @@ from ie_serving.logger import get_logger
 from ie_serving.models.shape_management.batching_info import BatchingInfo
 from ie_serving.models.shape_management.shape_info import ShapeInfo
 from ie_serving.models.shape_management.utils import BatchingMode, ShapeMode
+import numpy as np
 
 logger = get_logger(__name__)
 
@@ -139,14 +140,17 @@ class IrEngine():
             return self._set_names_in_config_as_keys(mapping_data)
 
     def infer(self, data: dict):
-        try:
-            results = self.exec_net.infer(inputs=data)
-        except Exception as e:
-            message = "Error occurred during inference execution: {}".format(
-                str(e))
-            logger.debug("[Model: {}, version: {}] --- {}".format(
-                self.model_name, self.model_version, message))
-            return None, message
+        #try:
+        #    results = self.exec_net.infer(inputs=data)
+        #except Exception as e:
+        #    message = "Error occurred during inference execution: {}".format(
+        #        str(e))
+        #    logger.debug("[Model: {}, version: {}] --- {}".format(
+        #        self.model_name, self.model_version, message))
+        #    return None, message
+        np1 = np.ones((1,1000),dtype=int)
+        results = {}
+        results["resnet_v1_50/predictions/Reshape_1"] = np1
         return results, None
 
     def detect_shapes_incompatibility(self, inference_input):

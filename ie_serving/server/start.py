@@ -56,6 +56,7 @@ def serve(models, max_workers: int=WORKERS, port: int=9000):
     model_service_pb2_grpc.add_ModelServiceServicer_to_server(
         ModelServiceServicer(models=models), server)
     server.add_insecure_port('[::]:{}'.format(port))
+    server.add_insecure_port('unix:/tmp/ovms.sock')
     server.start()
     logger.info("Server listens on port {port} and will be "
                 "serving models: {models}".format(port=port,
