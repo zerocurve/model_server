@@ -32,22 +32,10 @@ logger = get_logger(__name__)
 
 def inference_callback(status, py_data):
     ir_engine = py_data['ir_engine']
-    request = py_data['request']
     ireq_index = py_data['ireq_index']
-    start_time = py_data['start_time']
-    duration = (datetime.datetime.now() - start_time).total_seconds() * 1000
 
-    if status == InferenceStatus.OK:
-        request.set_result(ireq_index=ireq_index,
-                           result=ir_engine.exec_net.requests[ireq_index].
-                           outputs)
-    else:
-        request.set_result(ireq_index=ireq_index,
-                           result="Error occurred during inference execution")
-
-    logger.debug("[Inference callback] --- Inference completed in {} ms".
-                 format(duration))
-
+    ir_engine.out_queue.put(ir_engine.exec_net.requests[ireq_index].outputs)
+    ir_engine.free_ireq_index_queue.put(ireq_index)
 
 class IrEngine():
 
@@ -76,10 +64,9 @@ class IrEngine():
 
         logger.info("Matched keys for model: {}".format(self.model_keys))
 
-        self.engine_active = True
-        self.inference_thread = Thread(target=self.start_inference_thread)
-        self.inference_thread.daemon = True
-        self.inference_thread.start()
+        self.in_queue = None
+        self.out_queue = None
+
 
     @classmethod
     def build(cls, model_name, model_version, model_xml, model_bin,
@@ -190,7 +177,8 @@ class IrEngine():
     def start_inference_thread(self):
         logger.debug("Starting inference service for model {} version {}"
                      .format(self.model_name, self.model_version))
-        while self.engine_active:
+        self.requests_queue = self.in_queue
+        while True:
             try:
                 request = self.requests_queue.get(timeout=GLOBAL_CONFIG[
                     'engine_requests_queue_timeout'])
@@ -214,10 +202,6 @@ class IrEngine():
                 request.inference_input)
         logger.debug("Stopping inference service for model {} version {}"
                      .format(self.model_name, self.model_version))
-
-    def stop_inference_service(self):
-        self.engine_active = False
-        self.inference_thread.join()
 
     def suppress_inference(self):
         # Wait for all inferences executed on deleted engines to end

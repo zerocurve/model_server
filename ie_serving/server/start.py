@@ -46,26 +46,26 @@ def initialize_tf():
     pass
 
 
-def serve(models, max_workers: int=1, port: int=9000):
+def serve(in_queue, out_queue, max_workers: int=1, port: int=9000):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers),
                          options=[('grpc.max_send_message_length', GIGABYTE),
                                   ('grpc.max_receive_message_length', GIGABYTE)
                                   ])
     prediction_service_pb2_grpc.add_PredictionServiceServicer_to_server(
-        PredictionServiceServicer(models=models), server)
-    model_service_pb2_grpc.add_ModelServiceServicer_to_server(
-        ModelServiceServicer(models=models), server)
+        PredictionServiceServicer(in_queue, out_queue), server)
+    #model_service_pb2_grpc.add_ModelServiceServicer_to_server(
+    #    ModelServiceServicer(models=models), server)
     server.add_insecure_port('[::]:{}'.format(port))
     server.start()
     logger.info("gRPC server listens on port {port} and will be "
                 "serving models: {models}".format(port=port,
-                                                  models=list(models.keys())))
+                                                  models="pewno resnet"))
     try:
         while True:
             if GLOBAL_CONFIG['file_system_poll_wait_seconds'] > 0:
                 time.sleep(GLOBAL_CONFIG['file_system_poll_wait_seconds'])
-                for model in models:
-                    models[model].update()
+                #for model in models:
+                #   models[model].update()
             else:
                 time.sleep(_ONE_DAY_IN_SECONDS)
     except KeyboardInterrupt:

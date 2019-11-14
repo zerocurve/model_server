@@ -29,9 +29,11 @@ from ie_serving.server.start import start_web_rest_server
 from jsonschema.exceptions import ValidationError
 from jsonschema import validate
 import os
+import multiprocessing
 
 logger = get_logger(__name__)
-
+in_queue = multiprocessing.Queue()
+out_queue = multiprocessing.Queue()
 
 def set_engine_requests_queue_size(args):
     GLOBAL_CONFIG['engine_requests_queue_size'] = args.grpc_workers
@@ -115,8 +117,7 @@ def parse_config(args):
     start_server(models=models, max_workers=args.grpc_workers, port=args.port)
 
 
-def parse_one_model(args):
-    set_engine_requests_queue_size(args)
+def build_model(args):
     try:
         args.model_version_policy = json.loads(args.model_version_policy)
         if args.plugin_config is not None:
@@ -138,22 +139,24 @@ def parse_one_model(args):
         logger.error("Unexpected error occurred. "
                      "Exception: {}".format(e))
         sys.exit()
-    models = {}
-    if model is not None:
-        models[args.model_name] = model
-    else:
-        logger.info("Could not access provided model. Server will exit now.")
-        sys.exit()
+    model.attach_queues(in_queue, out_queue)
+
+
+def parse_one_model(args):
+    set_engine_requests_queue_size(args)
+
+    model_process = multiprocessing.Process(target=build_model, args=[args])
+    model_process.start()
 
     total_workers_number = args.grpc_workers
     if args.rest_port > 0:
         total_workers_number += args.rest_workers
         process_thread = threading.Thread(target=start_web_rest_server,
-                                          args=[models, args.rest_port,
+                                          args=[{}, args.rest_port,
                                                 args.rest_workers])
         process_thread.setDaemon(True)
         process_thread.start()
-    start_server(models=models, max_workers=args.grpc_workers,
+    start_server(in_queue, out_queue, max_workers=args.grpc_workers,
                  port=args.port)
 
 

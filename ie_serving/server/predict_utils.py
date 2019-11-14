@@ -37,22 +37,16 @@ statusCodes = {
 }
 
 
-def prepare_input_data(target_engine, data, service_type):
+def prepare_input_data(data, service_type):
     # returns:
     # inference_input, None on success
     # None, error_message on error
     model_inputs_in_input_request = list(dict(data).keys())
-    input_keys = target_engine.input_key_names
     inference_input = {}
 
     for requested_input_blob in model_inputs_in_input_request:
-        if requested_input_blob not in input_keys:
-            message = INVALID_INPUT_KEY % (model_inputs_in_input_request,
-                                           input_keys)
-            logger.debug("PREDICT error: {}".format(message))
-            return None, message
 
-        tensor_name = target_engine.model_keys['inputs'][requested_input_blob]
+        tensor_name = requested_input_blob
         if service_type == GRPC:
             try:
                 tensor_input = tf_contrib_util. \
@@ -64,37 +58,6 @@ def prepare_input_data(target_engine, data, service_type):
                 return None, message
         else:
             tensor_input = np.asarray(data[requested_input_blob])
-        # Validate shape if shape not in auto mode
-        if target_engine.shape_info.mode != ShapeMode.AUTO:
-            shape_required_in_model = target_engine.net.inputs[
-                tensor_name].shape
-
-            # For reshapable models check all dimensions,
-            # for non-reshapable, check all starting from the second (omit
-            # batch size)
-            if target_engine.shape_info.mode == ShapeMode.DISABLED:
-                starting_dim = 1
-            else:
-                starting_dim = 0
-
-            # check requested shape and model shape
-            if shape_required_in_model[starting_dim:] != list(
-                    tensor_input.shape)[starting_dim:]:
-                message = INVALID_SHAPE.format(list(tensor_input.shape),
-                                               shape_required_in_model)
-                logger.debug("PREDICT error: {}".format(message))
-                return None, message
-
-            # check if input batch size match the model only if not auto mode
-            if target_engine.batching_info.mode != \
-                BatchingMode.AUTO and shape_required_in_model[0] != \
-                    tensor_input.shape[0]:
-                message = INVALID_BATCHSIZE.format(
-                    tensor_input.shape[0],
-                    target_engine.batching_info.batch_size)
-                logger.debug("PREDICT error,Invalid batchsize:{}".format(
-                    message))
-                return None, message
 
         inference_input[tensor_name] = tensor_input
     return inference_input, None

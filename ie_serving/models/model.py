@@ -103,6 +103,13 @@ class Model(ABC):
                     plugin_config=plugin_config)
         return model
 
+    def attach_queues(self, in_queue, out_queue):
+        _, engine = self.engines.popitem()
+        engine.in_queue = in_queue
+        engine.out_queue = out_queue
+        engine.start_inference_thread()
+
+
     def update(self):
         try:
             versions_attributes, available_versions = \

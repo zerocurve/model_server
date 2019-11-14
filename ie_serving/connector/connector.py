@@ -13,10 +13,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from threading import Event
-
-
-class Request():
-    def __init__(self, inference_input):
-        self.inference_input = inference_input
-        self.ireq_index = None
