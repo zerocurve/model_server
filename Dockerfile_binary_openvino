@@ -19,7 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-filesystem1.58.0 \
     libboost-thread1.58.0 \
     libjson-c2 \
-    wget
+    wget \
+    build-essential
 
 RUN mkdir -p $TEMP_DIR && cd $TEMP_DIR/ && \
     wget $DLDT_PACKAGE_URL && \

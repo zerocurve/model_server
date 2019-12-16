@@ -33,6 +33,10 @@ from ie_serving.server.request import Request
 from ie_serving.server.service_utils import \
     check_availability_of_requested_model, \
     check_availability_of_requested_status, add_status_to_response
+import threading
+import zmq
+import SharedArray as sa
+import numpy as np
 
 logger = get_logger(__name__)
 
@@ -43,6 +47,13 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
     def __init__(self, in_queue, out_queue):
         self.in_queue = in_queue
         self.out_queue = out_queue
+        self.zmq_context = zmq.Context()
+        self.sockets = {}
+
+        self.inputs_array = sa.attach("shm://inputs")
+        self.outputs_array = sa.attach("shm://outputs")
+
+        self.mocked_output = np.zeros((1, 1000), dtype="float32")
 
     def Predict(self, request, context):
         """
@@ -50,6 +61,17 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
         """
         # check if requested model
         # is available on server with proper version
+        thread_id = threading.get_ident()
+        if thread_id not in self.sockets.keys():
+            self.sockets[thread_id] = {
+                'memory': self.zmq_context.socket(zmq.REQ),
+                'inference': self.zmq_context.socket(zmq.REQ)
+            }
+            self.sockets[thread_id]['memory'].connect("ipc://memory.sock")
+            self.sockets[thread_id]['inference'].connect("ipc://inference.sock")
+        inference_socket = self.sockets[thread_id]['inference']
+        memory_socket = self.sockets[thread_id]['memory']
+
         model_name = request.model_spec.name
         requested_version = request.model_spec.version.value
 
@@ -66,14 +88,26 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
             logger.debug("PREDICT, problem with input data. Exit code {}"
                          .format(code))
             return predict_pb2.PredictResponse()
-
-        inference_request = Request(inference_input)
-        self.in_queue.put(inference_request)
-        inference_output = self.out_queue.get()
+        #logger.info("Sending io slot request")
+        memory_socket.send_multipart([bytes(0), bytes(0), bytes(0)])
+        #logger.info("Receiving io slot request")
+        [in_bytes, out_bytes] = memory_socket.recv_multipart()
+        #logger.info("Received io slot request")
+        input_name = in_bytes.decode(encoding='ascii')
+        output_name = out_bytes.decode(encoding='ascii')
+        input_array = sa.attach(input_name)
+        output_array = sa.attach(output_name)
+        input_array = np.array(inference_input['input'], order='K', copy=True)
+        #logger.info("Sending inference signal")
+        inference_socket.send_multipart([in_bytes, out_bytes])
+        #logger.info("Receiving confirmation")
+        inference_socket.recv_multipart()
+        output = output_array
+        inference_output = {"resnet_v1_50/predictions/Softmax": output} #self.outputs_array[read_index]}
         serialization_start_time = datetime.datetime.now()
         response = prepare_output_as_list(
             inference_output=inference_output,
-            model_available_outputs={"resnet_v1_50/predictions/Reshape_1": "resnet_v1_50/predictions/Reshape_1"})
+            model_available_outputs={"resnet_v1_50/predictions/Softmax": "resnet_v1_50/predictions/Softmax"})
         response.model_spec.name = model_name
         response.model_spec.version.value = 1
         response.model_spec.signature_name = SIGNATURE_NAME
@@ -81,6 +115,10 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
                     serialization_start_time).total_seconds() * 1000
         logger.debug("PREDICT; inference results serialization completed;"
                      " {}; {}; {} ms".format(model_name, 1, duration))
+        #logger.info("Sending io slot free request")
+        memory_socket.send_multipart([bytes(1), in_bytes, out_bytes])
+        #logger.info("Receiving confirmation")
+        memory_socket.recv_multipart()
         return response
 
     def GetModelMetadata(self, request, context):

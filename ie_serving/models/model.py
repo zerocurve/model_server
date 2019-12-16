@@ -109,6 +109,10 @@ class Model(ABC):
         engine.out_queue = out_queue
         engine.start_inference_thread()
 
+    def start_memory_manager(self):
+        _, engine = self.engines.popitem()
+        engine.memory_manager_thread((1,3,224,224), (1,1000))
+
 
     def update(self):
         try:

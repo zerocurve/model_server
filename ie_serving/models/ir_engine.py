@@ -18,6 +18,7 @@ import json
 import queue
 from threading import Thread
 
+import zmq
 from openvino.inference_engine import IENetwork, IEPlugin
 
 from ie_serving.config import GLOBAL_CONFIG
@@ -26,6 +27,10 @@ from ie_serving.models import InferenceStatus
 from ie_serving.models.shape_management.batching_info import BatchingInfo
 from ie_serving.models.shape_management.shape_info import ShapeInfo
 from ie_serving.models.shape_management.utils import BatchingMode, ShapeMode
+
+import SharedArray as sa
+import numpy as np
+import collections
 
 logger = get_logger(__name__)
 
@@ -177,11 +182,24 @@ class IrEngine():
     def start_inference_thread(self):
         logger.debug("Starting inference service for model {} version {}"
                      .format(self.model_name, self.model_version))
-        self.requests_queue = self.in_queue
+        zmq_context = zmq.Context()
+        zmq_socket = zmq_context.socket(zmq.REP)
+        zmq_socket.bind("ipc://inference.sock")
+
+        mocked_output = np.zeros((1, 1000), dtype="float32")
         while True:
             try:
-                request = self.requests_queue.get(timeout=GLOBAL_CONFIG[
-                    'engine_requests_queue_timeout'])
+                [in_bytes, out_bytes] = zmq_socket.recv_multipart()
+                input_name = in_bytes.decode(encoding='ascii')
+                output_name = out_bytes.decode(encoding='ascii')
+                input_array = sa.attach(input_name)
+                output_array = sa.attach(output_name)
+                inference_input = input_array
+                # Do stuff
+                output_array = np.array(mocked_output, order='K', copy=True)
+                zmq_socket.send_multipart(["ACK".encode(encoding='ascii')])
+                #self.in_queue.put(write_index)
+                continue
             except queue.Empty:
                 continue
             error_message = self.adjust_network_inputs_if_needed(

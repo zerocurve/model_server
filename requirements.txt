@@ -1,4 +1,4 @@
-grpcio==1.22.0
+grpcio==1.25.0 --no-binary grpcio
 numpy==1.16.2
 protobuf==3.9.0
 tensorflow==1.14.0
@@ -8,3 +8,5 @@ boto3==1.9.188
 jsonschema==2.6.0
 falcon==2.0.0
 cheroot==6.5.5
+SharedArray==3.2.0
+pyzmq==18.1.1

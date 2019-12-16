@@ -15,9 +15,13 @@
 #
 
 import argparse
+import collections
 import json
+import queue
 import sys
 import threading
+
+import zmq
 
 from ie_serving.config import GLOBAL_CONFIG
 from ie_serving.models.model_builder import ModelBuilder
@@ -31,9 +35,9 @@ from jsonschema import validate
 import os
 import multiprocessing
 
+import SharedArray as sa
+
 logger = get_logger(__name__)
-in_queue = multiprocessing.Queue()
-out_queue = multiprocessing.Queue()
 
 def set_engine_requests_queue_size(args):
     GLOBAL_CONFIG['engine_requests_queue_size'] = args.grpc_workers
@@ -117,7 +121,7 @@ def parse_config(args):
     start_server(models=models, max_workers=args.grpc_workers, port=args.port)
 
 
-def build_model(args):
+def build_model(args, in_queue, out_queue):
     try:
         args.model_version_policy = json.loads(args.model_version_policy)
         if args.plugin_config is not None:
@@ -142,11 +146,56 @@ def build_model(args):
     model.attach_queues(in_queue, out_queue)
 
 
+def memory_manager_thread(in_shape, out_shape):
+    io_queue = queue.Queue()
+    for i in range(32):
+        in_name, out_name = "shm://input{}".format(i), "shm://output{}".format(i)
+        sa.create(in_name, in_shape)
+        sa.create(out_name, out_shape)
+        io_queue.put((in_name, out_name))
+
+    zmq_context = zmq.Context()
+    zmq_socket = zmq_context.socket(zmq.REP)
+    zmq_socket.bind("ipc://memory.sock")
+
+    logger.info("Memory manager initialized.")
+
+    while True:
+        #logger.info("Memory manager awaiting requests.")
+        [operation, in_bytes, out_bytes] = zmq_socket.recv_multipart()
+        if operation == bytes(0):
+            #logger.info("Received io slot acquire request")
+            free_io = io_queue.get()
+            input_name = free_io[0].encode(encoding='ascii')
+            output_name = free_io[1].encode(encoding='ascii')
+            zmq_socket.send_multipart([input_name, output_name])
+        if operation == bytes(1):
+            #logger.info("Received io slot free request")
+            input_name = in_bytes.decode(encoding='ascii')
+            output_name = out_bytes.decode(encoding='ascii')
+            io_queue.put((input_name, output_name))
+            zmq_socket.send_multipart(["ACK".encode(encoding='ascii')])
+
+
 def parse_one_model(args):
     set_engine_requests_queue_size(args)
 
-    model_process = multiprocessing.Process(target=build_model, args=[args])
+    sa.create("shm://inputs", (32, 1, 3, 224, 224))
+    sa.create("shm://outputs", (32, 1, 1000))
+
+    in_queue = multiprocessing.Queue()
+    out_queue = multiprocessing.Queue()
+
+    for i in range(32):
+        in_queue.put(i)
+        out_queue.put(i)
+
+    manager_process = multiprocessing.Process(target=memory_manager_thread, args=((1,3,224,224), (1,1000)))
+    manager_process.start()
+
+    model_process = multiprocessing.Process(target=build_model, args=(args, in_queue, out_queue))
     model_process.start()
+
 
     total_workers_number = args.grpc_workers
     if args.rest_port > 0:
@@ -156,8 +205,10 @@ def parse_one_model(args):
                                                 args.rest_workers])
         process_thread.setDaemon(True)
         process_thread.start()
-    start_server(in_queue, out_queue, max_workers=args.grpc_workers,
-                 port=args.port)
+    num_servers = int(os.getenv("NUM_SERVERS", 1))
+    for i in range(num_servers):
+        server = multiprocessing.Process(target=start_server, args=(in_queue, out_queue, args.grpc_workers, args.port))
+        server.start()
 
 
 def main():
