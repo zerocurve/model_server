@@ -36,6 +36,7 @@ GLOBAL_CONFIG = {
                                             None),
     'engine_requests_queue_timeout': os.getenv(
         'ENGINE_REQUESTS_QUEUE_TIMEOUT', 5),
+    'io_slots': os.getenv('IO_SLOTS', 32)
 }
 
 S3_CONFIG = {

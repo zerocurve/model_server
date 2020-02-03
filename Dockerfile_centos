@@ -1,0 +1,78 @@
+# This is CentOS based image for OVMS with NNP-I support
+# To perform docker build you need to have:
+# a) openvino_nnpi_plugin with OV plugin for NNP-I (https://gitlab.devtools.intel.com/omromano/openvino_nnpi_plugin)
+# b) intel_nnpi directory with lib and include subdirectories containing stuff necessary for NNP-I enablement.
+# in OVMS root directory so they are available in docker context.
+
+
+FROM centos:7.6.1810
+
+ARG http_proxy
+ARG https_proxy
+
+ENV http_proxy=$http_proxy
+ENV HTTP_PROXY=$http_proxy
+ENV https_proxy=$https_proxy
+ENV HTTPS_PROXY=$https_proxy
+
+RUN yum install -y which make git wget gcc-c++ https://centos7.iuscommunity.org/ius-release.rpm
+RUN yum update -y && yum install -y python36 python36-libs python36-devel python36-pip
+
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.9.1/cmake-3.9.1.tar.gz && \
+    tar zxvf cmake-3.* && \
+    cd cmake-3.* && \
+    ./bootstrap && \
+    make -j && make install
+
+RUN git clone https://github.com/opencv/dldt.git && \
+    cd dldt && \
+    git checkout 2019 && \
+    git submodule init && \
+    git submodule update --recursive
+
+RUN cd dldt/inference-engine/ie_bridges/python && \
+    pip3 install -r requirements.txt
+
+RUN cd dldt/inference-engine && \
+    sed "s/known_plugins = \['CPU', 'GPU', 'FPGA', 'MYRIAD', 'HETERO', 'HDDL', 'MULTI'\]/known_plugins = \['CPU', 'GPU', 'FPGA', 'MYRIAD', 'HETERO', 'HDDL', 'MULTI', 'NNPI'\]/" -i ie_bridges/python/src/openvino/inference_engine/ie_api.pyx && \
+    mkdir build && cd build && \
+    cmake -DENABLE_PYTHON=ON -DPYTHON_EXECUTABLE=`which python3.6` \
+        -DPYTHON_LIBRARY=/usr/lib64/libpython3.6m.so \
+        -DPYTHON_INCLUDE_DIR=/usr/include/python3.6m \
+        -DGEMM=JIT -DENABLE_VALIDATION_SET=OFF -DCMAKE_BUILD_TYPE=Debug -DENABLE_MYRIAD=OFF -DENABLE_VPU=OFF -DENABLE_GNA=OFF -DENABLE_CLDNN=OFF -DENABLE_PROFILING_ITT=OFF -DENABLE_DLIA=OFF -DENABLE_SEGMENTATION_TESTS=OFF -DENABLE_OBJECT_DETECTION_TESTS=OFF -DTREAT_WARNING_AS_ERROR=OFF -Wno-shift-negative-value .. && \
+    make -j8
+
+COPY openvino_nnpi_plugin /openvino_nnpi_plugin
+COPY intel_nnpi/lib /opt/intel_nnpi/lib
+COPY intel_nnpi/include /opt/intel_nnpi/include
+ENV DLDT_PATH=/dldt/
+ENV DLDT_HOME=/dldt/inference-engine
+ENV DLDT_BIN_FOLDER=/dldt/inference-engine/bin/intel64/Debug
+ENV DL_TRANSFORMER_LIB_PATH=/opt/intel_nnpi/lib/
+ENV DL_INFERENCE_LIB_PATH=/opt/intel_nnpi/lib/
+ENV DL_COMPILER_INCLUDE_PATH=/opt/intel_nnpi/include/
+ENV DL_INFERENCE_INCLUDE_PATH=/opt/intel_nnpi/include/
+
+RUN cd /openvino_nnpi_plugin/nnpi_plugin && mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Debug .. && make -j
+
+RUN git clone https://github.com/opencv/opencv.git -b master && \
+    cd opencv && mkdir build && cd build && \
+    cmake .. && make -j8 && \
+    cp -r /opencv/build/lib  /dldt/inference-engine/temp/opencv_4.1.1_centos7/
+
+ENV LD_LIBRARY_PATH=/opencv/build/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/opt/intel_nnpi/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/dldt/inference-engine/temp/tbb/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/dldt/inference-engine/bin/intel64/Debug/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/openvino_nnpi_plugin/nnpi_plugin/bin/intel64/Debug/lib:$LD_LIBRARY_PATH
+ENV PYTHONPATH=/dldt/inference-engine/bin/intel64/Debug/lib/python_api/python3.6/:$PYTHONPATH
+
+# Model server setup
+WORKDIR /ie-serving-py
+COPY requirements.txt /ie-serving-py/
+COPY start_server.sh setup.py /ie-serving-py/
+COPY ie_serving /ie-serving-py/ie_serving
+
+RUN pip3 install virtualenv && virtualenv -p python3.6 .venv && . .venv/bin/activate && \
+    pip3 install -r requirements.txt && pip3 install .

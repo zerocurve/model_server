@@ -37,6 +37,7 @@ import threading
 import zmq
 import SharedArray as sa
 import numpy as np
+import threading
 
 logger = get_logger(__name__)
 
@@ -44,14 +45,12 @@ logger = get_logger(__name__)
 class PredictionServiceServicer(prediction_service_pb2_grpc.
                                 PredictionServiceServicer):
 
-    def __init__(self, in_queue, out_queue):
+    def __init__(self, process_id, in_queue, out_queue):
+        self.process_id = process_id
         self.in_queue = in_queue
         self.out_queue = out_queue
         self.zmq_context = zmq.Context()
         self.sockets = {}
-
-        self.inputs_array = sa.attach("shm://inputs")
-        self.outputs_array = sa.attach("shm://outputs")
 
         self.mocked_output = np.zeros((1, 1000), dtype="float32")
 
@@ -62,14 +61,18 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
         # check if requested model
         # is available on server with proper version
         thread_id = threading.get_ident()
+        client_id = "{}:{}".format(self.process_id, thread_id)
         if thread_id not in self.sockets.keys():
             self.sockets[thread_id] = {
                 'memory': self.zmq_context.socket(zmq.REQ),
-                'inference': self.zmq_context.socket(zmq.REQ)
+                'inference_input': self.zmq_context.socket(zmq.REQ),
+                'inference_output': self.zmq_context.socket(zmq.REP)
             }
             self.sockets[thread_id]['memory'].connect("ipc://memory.sock")
-            self.sockets[thread_id]['inference'].connect("ipc://inference.sock")
-        inference_socket = self.sockets[thread_id]['inference']
+            self.sockets[thread_id]['inference_input'].connect("ipc://inference_in.sock")
+            self.sockets[thread_id]['inference_output'].bind("ipc://{}.sock".format(client_id))
+        inference_in_socket = self.sockets[thread_id]['inference_input']
+        inference_out_socket = self.sockets[thread_id]['inference_output']
         memory_socket = self.sockets[thread_id]['memory']
 
         model_name = request.model_spec.name
@@ -89,25 +92,42 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
                          .format(code))
             return predict_pb2.PredictResponse()
         #logger.info("Sending io slot request")
+        start_time = datetime.datetime.now()
         memory_socket.send_multipart([bytes(0), bytes(0), bytes(0)])
         #logger.info("Receiving io slot request")
         [in_bytes, out_bytes] = memory_socket.recv_multipart()
+        duration = (datetime.datetime.now() -
+                    start_time).total_seconds() * 1000
+        logger.debug("Acquiring IO slot: {} ms".format(duration))
         #logger.info("Received io slot request")
         input_name = in_bytes.decode(encoding='ascii')
         output_name = out_bytes.decode(encoding='ascii')
         input_array = sa.attach(input_name)
         output_array = sa.attach(output_name)
-        input_array = np.array(inference_input['input'], order='K', copy=True)
+        start_time = datetime.datetime.now()
+        input_array[:] = inference_input['input']
+        duration = (datetime.datetime.now() -
+                    start_time).total_seconds() * 1000
+        logger.debug("Copying input to shared memory: {} ms".format(duration))
+
         #logger.info("Sending inference signal")
-        inference_socket.send_multipart([in_bytes, out_bytes])
+        start_time = datetime.datetime.now()
+        inference_in_socket.send_multipart([client_id.encode(encoding='ascii'), in_bytes, out_bytes])
+        inference_in_socket.recv()
+        duration = (datetime.datetime.now() -
+                    start_time).total_seconds() * 1000
+        logger.debug("Simple zmq send-recv: {} ms".format(duration))
+        #logger.info(client_id)
         #logger.info("Receiving confirmation")
-        inference_socket.recv_multipart()
+        inference_out_socket.recv()
+        inference_out_socket.send(b'')
+        #logger.info("Confirmation received")
         output = output_array
-        inference_output = {"resnet_v1_50/predictions/Softmax": output} #self.outputs_array[read_index]}
+        inference_output = {"prob": output} #"resnet_v1_50/predictions/Softmax"
         serialization_start_time = datetime.datetime.now()
         response = prepare_output_as_list(
             inference_output=inference_output,
-            model_available_outputs={"resnet_v1_50/predictions/Softmax": "resnet_v1_50/predictions/Softmax"})
+            model_available_outputs={"prob": "prob"}) # {"resnet_v1_50/predictions/Softmax": "resnet_v1_50/predictions/Softmax"})
         response.model_spec.name = model_name
         response.model_spec.version.value = 1
         response.model_spec.signature_name = SIGNATURE_NAME
@@ -116,9 +136,13 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
         logger.debug("PREDICT; inference results serialization completed;"
                      " {}; {}; {} ms".format(model_name, 1, duration))
         #logger.info("Sending io slot free request")
+        start_time = datetime.datetime.now()
         memory_socket.send_multipart([bytes(1), in_bytes, out_bytes])
         #logger.info("Receiving confirmation")
         memory_socket.recv_multipart()
+        duration = (datetime.datetime.now() -
+                    start_time).total_seconds() * 1000
+        logger.debug("Memory freeing: {} ms".format(duration))
         return response
 
     def GetModelMetadata(self, request, context):

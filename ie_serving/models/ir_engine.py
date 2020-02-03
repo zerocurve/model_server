@@ -19,7 +19,7 @@ import queue
 from threading import Thread
 
 import zmq
-from openvino.inference_engine import IENetwork, IEPlugin
+from openvino.inference_engine import IENetwork, IECore
 
 from ie_serving.config import GLOBAL_CONFIG
 from ie_serving.logger import get_logger
@@ -36,11 +36,34 @@ logger = get_logger(__name__)
 
 
 def inference_callback(status, py_data):
+    # logger.info("Entered inference callback")
     ir_engine = py_data['ir_engine']
     ireq_index = py_data['ireq_index']
+    output_name = py_data['output_name']
+    caller_id = py_data['caller_id']
+    # logger.info(caller_id.decode(encoding='ascii'))
+    zmq_start_time = datetime.datetime.now()
+    zmq_context = zmq.Context()
+    zmq_socket = zmq_context.socket(zmq.REQ)
+    zmq_socket.connect("ipc://{}.sock".format(caller_id.decode(encoding='ascii')))
+    duration = (datetime.datetime.now() -
+                zmq_start_time).total_seconds() * 1000
+    logger.debug("Inference callback socket setup: {} ms".format(duration))
 
-    ir_engine.out_queue.put(ir_engine.exec_net.requests[ireq_index].outputs)
+    output_array = sa.attach(output_name)
+    results = ir_engine.exec_net.requests[ireq_index].outputs
+    zmq_start_time = datetime.datetime.now()
+    output_array[:] = results["prob"] #"resnet_v1_50/predictions/Softmax"
+    duration = (datetime.datetime.now() -
+                zmq_start_time).total_seconds() * 1000
+    logger.debug("Copying output to shared memory: {} ms".format(duration))
+
     ir_engine.free_ireq_index_queue.put(ireq_index)
+    # logger.info("Outputs acquired. Sending signal.")
+    zmq_socket.send("ACK".encode(encoding='ascii'))
+    # logger.info("Signal sent.")
+    zmq_socket.recv()
+
 
 class IrEngine():
 
@@ -72,15 +95,16 @@ class IrEngine():
         self.in_queue = None
         self.out_queue = None
 
-
     @classmethod
     def build(cls, model_name, model_version, model_xml, model_bin,
               mapping_config, batch_size_param, shape_param, num_ireq,
               target_device, plugin_config):
-        plugin = IEPlugin(device=target_device,
-                          plugin_dirs=GLOBAL_CONFIG['plugin_dir'])
-        if GLOBAL_CONFIG['cpu_extension'] and 'CPU' in target_device:
-            plugin.add_cpu_extension(GLOBAL_CONFIG['cpu_extension'])
+        # plugin = IEPlugin(device=target_device,
+        #                  plugin_dirs=GLOBAL_CONFIG['plugin_dir'])
+        # if GLOBAL_CONFIG['cpu_extension'] and 'CPU' in target_device:
+        #    plugin.add_cpu_extension(GLOBAL_CONFIG['cpu_extension'])
+        core = IECore()
+        core.register_plugin("NNPIPlugin", "NNPI")
         net = IENetwork(model=model_xml, weights=model_bin)
         batching_info = BatchingInfo(batch_size_param)
         shape_info = ShapeInfo(shape_param, net.inputs)
@@ -115,10 +139,10 @@ class IrEngine():
         requests_queue = queue.Queue(maxsize=GLOBAL_CONFIG[
             'engine_requests_queue_size'])
 
-        exec_net = plugin.load(network=net, num_requests=num_ireq,
-                               config=plugin_config)
+        exec_net = core.load_network(network=net, num_requests=num_ireq, device_name=target_device,
+                                     config=plugin_config)
         ir_engine = cls(model_name=model_name, model_version=model_version,
-                        mapping_config=mapping_config, net=net, plugin=plugin,
+                        mapping_config=mapping_config, net=net, plugin=None,
                         exec_net=exec_net, batching_info=batching_info,
                         shape_info=shape_info,
                         free_ireq_index_queue=free_ireq_index_queue,
@@ -184,42 +208,28 @@ class IrEngine():
                      .format(self.model_name, self.model_version))
         zmq_context = zmq.Context()
         zmq_socket = zmq_context.socket(zmq.REP)
-        zmq_socket.bind("ipc://inference.sock")
+        zmq_socket.bind("ipc://inference_in.sock")
 
-        mocked_output = np.zeros((1, 1000), dtype="float32")
         while True:
-            try:
-                [in_bytes, out_bytes] = zmq_socket.recv_multipart()
-                input_name = in_bytes.decode(encoding='ascii')
-                output_name = out_bytes.decode(encoding='ascii')
-                input_array = sa.attach(input_name)
-                output_array = sa.attach(output_name)
-                inference_input = input_array
-                # Do stuff
-                output_array = np.array(mocked_output, order='K', copy=True)
-                zmq_socket.send_multipart(["ACK".encode(encoding='ascii')])
-                #self.in_queue.put(write_index)
-                continue
-            except queue.Empty:
-                continue
-            error_message = self.adjust_network_inputs_if_needed(
-                request.inference_input)
-            if error_message is not None:
-                request.result = error_message
-                continue
+            [caller_id, in_bytes, out_bytes] = zmq_socket.recv_multipart()
+            zmq_socket.send(b'ACK')
+            input_name = in_bytes.decode(encoding='ascii')
+            output_name = out_bytes.decode(encoding='ascii')
+
+            input_array = sa.attach(input_name)
+            inference_input = input_array
+
             ireq_index = self.free_ireq_index_queue.get()
             py_data = {
                 'ir_engine': self,
                 'ireq_index': ireq_index,
-                'request': request,
-                'start_time': datetime.datetime.now()
+                'output_name': output_name,
+                'caller_id': caller_id,
             }
             self.exec_net.requests[ireq_index].set_completion_callback(
                 py_callback=inference_callback, py_data=py_data)
             self.exec_net.requests[ireq_index].async_infer(
-                request.inference_input)
-        logger.debug("Stopping inference service for model {} version {}"
-                     .format(self.model_name, self.model_version))
+                {"input": inference_input})
 
     def suppress_inference(self):
         # Wait for all inferences executed on deleted engines to end

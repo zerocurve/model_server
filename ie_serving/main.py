@@ -148,7 +148,8 @@ def build_model(args, in_queue, out_queue):
 
 def memory_manager_thread(in_shape, out_shape):
     io_queue = queue.Queue()
-    for i in range(32):
+    io_slots = int(GLOBAL_CONFIG['io_slots'])
+    for i in range(io_slots):
         in_name, out_name = "shm://input{}".format(i), "shm://output{}".format(i)
         sa.create(in_name, in_shape)
         sa.create(out_name, out_shape)
@@ -164,13 +165,13 @@ def memory_manager_thread(in_shape, out_shape):
         #logger.info("Memory manager awaiting requests.")
         [operation, in_bytes, out_bytes] = zmq_socket.recv_multipart()
         if operation == bytes(0):
-            #logger.info("Received io slot acquire request")
+            logger.debug("Received io slot acquire request")
             free_io = io_queue.get()
             input_name = free_io[0].encode(encoding='ascii')
             output_name = free_io[1].encode(encoding='ascii')
             zmq_socket.send_multipart([input_name, output_name])
         if operation == bytes(1):
-            #logger.info("Received io slot free request")
+            logger.debug("Received io slot free request")
             input_name = in_bytes.decode(encoding='ascii')
             output_name = out_bytes.decode(encoding='ascii')
             io_queue.put((input_name, output_name))
@@ -180,22 +181,18 @@ def memory_manager_thread(in_shape, out_shape):
 def parse_one_model(args):
     set_engine_requests_queue_size(args)
 
-    sa.create("shm://inputs", (32, 1, 3, 224, 224))
-    sa.create("shm://outputs", (32, 1, 1000))
-
     in_queue = multiprocessing.Queue()
     out_queue = multiprocessing.Queue()
-
-    for i in range(32):
+    io_slots = int(GLOBAL_CONFIG['io_slots'])
+    for i in range(io_slots):
         in_queue.put(i)
         out_queue.put(i)
 
-    manager_process = multiprocessing.Process(target=memory_manager_thread, args=((1,3,224,224), (1,1000)))
+    manager_process = multiprocessing.Process(target=memory_manager_thread, args=((int(args.batch_size),3,224,224), (int(args.batch_size),1000)))
     manager_process.start()
 
     model_process = multiprocessing.Process(target=build_model, args=(args, in_queue, out_queue))
     model_process.start()
-
 
     total_workers_number = args.grpc_workers
     if args.rest_port > 0:
@@ -207,7 +204,7 @@ def parse_one_model(args):
         process_thread.start()
     num_servers = int(os.getenv("NUM_SERVERS", 1))
     for i in range(num_servers):
-        server = multiprocessing.Process(target=start_server, args=(in_queue, out_queue, args.grpc_workers, args.port))
+        server = multiprocessing.Process(target=start_server, args=(i, in_queue, out_queue, args.grpc_workers, args.port))
         server.start()
 
 
