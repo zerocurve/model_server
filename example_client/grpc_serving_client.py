@@ -61,9 +61,6 @@ processing_times = np.zeros((0),int)
 imgs = np.load(args['images_numpy_path'], mmap_mode='r', allow_pickle=False)
 imgs = imgs - np.min(imgs)  # Normalization 0-255
 imgs = imgs / np.ptp(imgs) * 255  # Normalization 0-255
-#imgs = imgs[:,:,:,::-1] # RGB to BGR
-print('Image data range:', np.amin(imgs), ':', np.amax(imgs))
-# optional preprocessing depending on the model
 
 if args.get('labels_numpy_path') is not None:
     lbs = np.load(args['labels_numpy_path'], mmap_mode='r', allow_pickle=False)
@@ -78,17 +75,6 @@ while batch_size >= imgs.shape[0]:
         lbs = np.append(lbs, lbs, axis=0)
 
 iterations = int((imgs.shape[0]//batch_size) if not (args.get('iterations') or args.get('iterations') != 0) else args.get('iterations'))
-
-print('Start processing:')
-print('\tModel name: {}'.format(args.get('model_name')))
-print('\tIterations: {}'.format(iterations))
-print('\tImages numpy path: {}'.format(args.get('images_numpy_path')))
-if args.get('transpose_input') == "True":
-    if args.get('transpose_method') == "nhwc2nchw":
-        imgs = imgs.transpose((0,3,1,2))
-    if args.get('transpose_method') == "nchw2nhwc":
-        imgs = imgs.transpose((0,2,3,1))
-print('\tImages in shape: {}\n'.format(imgs.shape))
 
 iteration = 0
 
@@ -105,38 +91,9 @@ while iteration <= iterations:
         start_time = datetime.datetime.now()
         result = stub.Predict(request, 10.0) # result includes a dictionary with all model outputs
         end_time = datetime.datetime.now()
-        if args['output_name'] not in result.outputs:
-            print("Invalid output name", args['output_name'])
-            print("Available outputs:")
-            for Y in result.outputs:
-                print(Y)
-            exit(1)
         duration = (end_time - start_time).total_seconds() * 1000
-        processing_times = np.append(processing_times,np.array([int(duration)]))
-        output = make_ndarray(result.outputs[args['output_name']])
+        processing_times = np.append(processing_times,np.array([duration]))
 
-        nu = np.array(output)
-        # for object classification models show imagenet class
-        print('Iteration {}; Processing time: {:.2f} ms; speed {:.2f} fps'.format(iteration,round(np.average(duration), 2),
-                                                                                  round(1000 * batch_size / np.average(duration), 2)
-                                                                                  ))
-        # Comment out this section for non imagenet datasets
-        print("imagenet top results in a single batch:")
-        for i in range(nu.shape[0]):
-            single_result = nu[[i],...]
-            ma = np.argmax(single_result)
-            mark_message = ""
-            if args.get('labels_numpy_path') is not None:
-                total_executed += 1
-                if ma == lb[i]:
-                    matched_count += 1
-                    mark_message = "; Correct match."
-                else:
-                    mark_message = "; Incorrect match. Should be {} {}".format(lb[i], classes.imagenet_classes[lb[i]] )
-            print("\t",i, classes.imagenet_classes[ma],ma, mark_message)
-        # Comment out this section for non imagenet datasets
+        # print('Iteration {:5}; Current time: {:.2f}ms; Average time: {:.2f}ms'.format(iteration, round(duration, 2), round(np.average(processing_times), 2)))
 
-print_statistics(processing_times, batch_size)
-
-if args.get('labels_numpy_path') is not None:
-    print('Classification accuracy: {:.2f}'.format(100*matched_count/total_executed))
+print("Iterations: {:5}; Average time: {:.2f}".format(iterations, round(np.average(processing_times), 2)))
