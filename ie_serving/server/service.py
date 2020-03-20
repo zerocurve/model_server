@@ -48,6 +48,7 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
     def Predict(self, request, context):
         # check if requested model
         # is available on server with proper version
+        overall_start_time = datetime.datetime.now()
         model_name = request.model_spec.name
         requested_version = request.model_spec.version.value
 
@@ -87,7 +88,6 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
                     - start_time).total_seconds() * 1000
         logger.debug("Preparing IPC message - {} ms"
                      .format(duration))
-
         start_time = datetime.datetime.now()
         target_socket.send(ipc_predict_request.SerializeToString())
         target_socket.recv()
@@ -95,7 +95,6 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
                     - start_time).total_seconds() * 1000
         logger.debug("Sending IPC message and receiving confirmation - {} ms"
                      .format(duration))
-
         if return_socket_name not in self.predict_return_sockets:
             return_socket = self.zmq_context.socket(zmq.REP)
             return_socket.bind("ipc://{}".format(return_socket_name))
@@ -109,8 +108,6 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
                     - start_time).total_seconds() * 1000
         logger.debug("Backend processing and communication time - {} ms"
                      .format(duration))
-        return_socket.send(b'ACK')
-
         start_time = datetime.datetime.now()
         ipc_endpoint_response = EndpointResponse()
         ipc_endpoint_response.MergeFromString(ipc_raw_response)
@@ -144,13 +141,16 @@ class PredictionServiceServicer(prediction_service_pb2_grpc.
         duration = (datetime.datetime.now()
                     - start_time).total_seconds() * 1000
         logger.debug("Output serialization - {} ms".format(duration))
+        return_socket.send(b'ACK')
 
         response.model_spec.name = model_name
         response.model_spec.version.value = ipc_predict_response.\
             responding_version
         response.model_spec.signature_name = SIGNATURE_NAME
-        free_outputs_shm(ipc_predict_response)
         free_inputs_shm(ipc_predict_request)
+        duration = (datetime.datetime.now()
+                    - overall_start_time).total_seconds() * 1000
+        logger.debug("Overall request handling time - {} ms".format(duration))
         return response
 
     # GetModelMetadata and GetModelStatus endpoints will be
