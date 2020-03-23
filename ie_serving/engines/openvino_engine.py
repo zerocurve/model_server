@@ -16,6 +16,7 @@
 import datetime
 import json
 import queue
+import numpy as np
 
 from openvino.inference_engine import IENetwork, IECore
 
@@ -27,6 +28,7 @@ from ie_serving.models.shape_management.batching_info import BatchingInfo
 from ie_serving.models.shape_management.shape_info import ShapeInfo
 from ie_serving.models.shape_management.utils import BatchingMode, ShapeMode
 
+from multiprocessing import shared_memory
 logger = get_logger(__name__)
 
 
@@ -81,10 +83,22 @@ class OpenvinoEngine(Engine):  # Engine class inheritance
             logger.debug("[Model: {}, version: {}] --- Setting shape to "
                          "default".format(self.model_name, self.model_version))
         ###############################
-        # Creating free infer requests indexes queue
+        # Creating free infer requests indexes queue and output slots
         self.free_ireq_index_queue = queue.Queue(maxsize=self.num_ireq)
+        self.outputs_slots = {}
+        outputs_shapes = self._get_outputs_shapes(self.net.outputs)
         for ireq_index in range(self.num_ireq):
             self.free_ireq_index_queue.put(ireq_index)
+            self.outputs_slots[ireq_index] = {}
+            output_slot = self.outputs_slots[ireq_index]
+            for output_name, output_shape in outputs_shapes.items():
+                tmp_array = np.ones(output_shape, dtype=np.float32)
+                output_shm = shared_memory.SharedMemory(create=True,
+                                                        size=tmp_array.nbytes)
+                shm_array = np.ndarray(tmp_array.shape, dtype=tmp_array.dtype,
+                                        buffer=output_shm.buf)
+                output_slot[output_name] = (output_shm, shm_array)
+
         ###############################
         self.requests_queue = queue.Queue(maxsize=GLOBAL_CONFIG[
             'engine_requests_queue_size'])
@@ -112,6 +126,12 @@ class OpenvinoEngine(Engine):  # Engine class inheritance
     #########################################
     # OV ENGINE BUILDING UNDERLYING METHODS #
     #########################################
+
+    def _get_outputs_shapes(self, outputs):
+        outputs_shapes = {}
+        for layer_name, layer in outputs.items():
+            outputs_shapes[layer_name] = layer.shape
+        return outputs_shapes
 
     def _get_mapping_data_if_exists(self, mapping_config):
         if mapping_config is not None:
@@ -176,7 +196,7 @@ class OpenvinoEngine(Engine):  # Engine class inheritance
         if status == InferenceStatus.OK:
             inference_output = self.exec_net.requests[ireq_index].outputs
             # Parent class method call
-            self.return_results(inference_output, return_socket_name)
+            self.return_results(inference_output, return_socket_name, ireq_index)
             self.free_ireq_index_queue.put(ireq_index)
         else:
             # TODO: Include error handling

@@ -23,12 +23,14 @@ import numpy as np
 import zmq
 import multiprocessing.shared_memory
 
+import threading
 from threading import Thread
 
 
 class Engine(ABC):
 
     def __init__(self, engine_properties):
+        self.connections_map = {}
         self.model_name = engine_properties["model_name"]
         self.model_version = engine_properties["model_version"]
         # engine properties should be a dict that will
@@ -71,22 +73,39 @@ class Engine(ABC):
             return_socket_name = request.predict_request.return_socket_name
             self.predict(data, return_socket_name)
 
-    def return_results(self, inference_output, return_socket_name):
+    def return_results(self, inference_output, return_socket_name, slot_index):
+        """
         zmq_return_context = zmq.Context()
         zmq_return_socket = zmq_return_context.socket(zmq.REQ)
         zmq_return_socket.connect(
             "ipc://{}".format(return_socket_name))
+        """
+        thread_id = threading.get_ident()
+        if thread_id not in self.connections_map:
+            self.connections_map[thread_id] = {}
+        if return_socket_name not in self.connections_map[thread_id]:        
+            zmq_context = zmq.Context()
+            return_socket = zmq_context.socket(zmq.REQ)
+            return_socket.connect("ipc://{}".format(return_socket_name))
+            self.connections_map[thread_id][return_socket_name] = return_socket
+        return_socket = self.connections_map[thread_id][return_socket_name]
+        
         ipc_endpoint_response = EndpointResponse()
         ipc_predict_response = PredictResponse()
         ipc_outputs = []
 
+        output_slot = self.outputs_slots[slot_index]
+
         for output_name in list(inference_output.keys()):
             single_output = inference_output[output_name]
+            (output_shm, shm_array) = output_slot[output_name]
+            """
             output_shm = multiprocessing.shared_memory.SharedMemory(create=True,
                                                                     size=single_output.nbytes)
             shm_array = np.ndarray(single_output.shape, dtype=single_output.dtype,
                                    buffer=output_shm.buf)
-            shm_array[:] = single_output[:]
+            """
+            shm_array[:] = single_output
 
             ipc_numpy_attributes = NumpyAttributes()
             ipc_numpy_attributes.shape.extend(list(shm_array.shape))
@@ -102,6 +121,6 @@ class Engine(ABC):
         ipc_predict_response.responding_version = 1
         ipc_endpoint_response.predict_response.CopyFrom(ipc_predict_response)
         msg = ipc_endpoint_response.SerializeToString()
-        zmq_return_socket.send(msg)
-        zmq_return_socket.recv()
+        return_socket.send(msg)
+        return_socket.recv()
 
