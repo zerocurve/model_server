@@ -50,6 +50,7 @@ parser.add_argument('--batchsize', default=1,
                     dest='batchsize')
 parser.add_argument('--model_name', default='resnet', help='Define model name, must be same as is in service. default: resnet',
                     dest='model_name')
+parser.add_argument('--id', default=0, dest='id')
 args = vars(parser.parse_args())
 
 channel = grpc.insecure_channel("{}:{}".format(args['grpc_address'],args['grpc_port']))
@@ -62,7 +63,7 @@ imgs = np.load(args['images_numpy_path'], mmap_mode='r', allow_pickle=False)
 imgs = imgs - np.min(imgs)  # Normalization 0-255
 imgs = imgs / np.ptp(imgs) * 255  # Normalization 0-255
 #imgs = imgs[:,:,:,::-1] # RGB to BGR
-print('Image data range:', np.amin(imgs), ':', np.amax(imgs))
+#print('Image data range:', np.amin(imgs), ':', np.amax(imgs))
 # optional preprocessing depending on the model
 
 if args.get('labels_numpy_path') is not None:
@@ -79,16 +80,16 @@ while batch_size >= imgs.shape[0]:
 
 iterations = int((imgs.shape[0]//batch_size) if not (args.get('iterations') or args.get('iterations') != 0) else args.get('iterations'))
 
-print('Start processing:')
-print('\tModel name: {}'.format(args.get('model_name')))
-print('\tIterations: {}'.format(iterations))
-print('\tImages numpy path: {}'.format(args.get('images_numpy_path')))
+#print('Start processing:')
+#print('\tModel name: {}'.format(args.get('model_name')))
+#print('\tIterations: {}'.format(iterations))
+#print('\tImages numpy path: {}'.format(args.get('images_numpy_path')))
 if args.get('transpose_input') == "True":
     if args.get('transpose_method') == "nhwc2nchw":
         imgs = imgs.transpose((0,3,1,2))
     if args.get('transpose_method') == "nchw2nhwc":
         imgs = imgs.transpose((0,2,3,1))
-print('\tImages in shape: {}\n'.format(imgs.shape))
+#print('\tImages in shape: {}\n'.format(imgs.shape))
 
 iteration = 0
 
@@ -116,12 +117,14 @@ while iteration <= iterations:
         output = make_ndarray(result.outputs[args['output_name']])
 
         nu = np.array(output)
+        #print(np.shape(nu))
+        np.savetxt('arr.txt', nu)
         # for object classification models show imagenet class
-        print('Iteration {}; Processing time: {:.2f} ms; speed {:.2f} fps'.format(iteration,round(np.average(duration), 2),
-                                                                                  round(1000 * batch_size / np.average(duration), 2)
-                                                                                  ))
+        #print('Iteration {}; Processing time: {:.2f} ms; speed {:.2f} fps'.format(iteration,round(np.average(duration), 2),
+        #                                                                          round(1000 * batch_size / np.average(duration), 2)
+        #                                                                          ))
         # Comment out this section for non imagenet datasets
-        print("imagenet top results in a single batch:")
+        #print("imagenet top results in a single batch:")
         for i in range(nu.shape[0]):
             single_result = nu[[i],...]
             ma = np.argmax(single_result)
@@ -133,10 +136,10 @@ while iteration <= iterations:
                     mark_message = "; Correct match."
                 else:
                     mark_message = "; Incorrect match. Should be {} {}".format(lb[i], classes.imagenet_classes[lb[i]] )
-            print("\t",i, classes.imagenet_classes[ma],ma, mark_message)
+            #print("\t",i, classes.imagenet_classes[ma],ma, mark_message)
         # Comment out this section for non imagenet datasets
 
-print_statistics(processing_times, batch_size)
+#print_statistics(processing_times, batch_size)
 
 if args.get('labels_numpy_path') is not None:
-    print('Classification accuracy: {:.2f}'.format(100*matched_count/total_executed))
+    print(args.get('id') + ': Classification accuracy: {:.2f}'.format(100*matched_count/total_executed))
