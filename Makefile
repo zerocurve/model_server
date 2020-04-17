@@ -30,7 +30,7 @@ HTTPS_PROXY := "$(https_proxy)"
 OVMS_VERSION := "2020_R1"
 DLDT_PACKAGE_URL := "$(dldt_package_url)"
 TEST_MODELS_DIR = /tmp/ovms_models
-DOCKER_OVMS_TAG ?= ie-serving-py:latest
+DOCKER_OVMS_TAG ?= ie-serving-py:lite
 
 .PHONY: default install uninstall requirements \
 	venv test unit_test coverage style dist clean \
