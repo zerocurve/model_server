@@ -47,14 +47,15 @@ RUN mkdir -p $TEMP_DIR && cd $TEMP_DIR/ && \
     esac ; \
     sed -i "s/COMPONENTS=DEFAULTS/COMPONENTS=intel-openvino-ie-sdk-ubuntu-bionic__x86_64;intel-openvino-ie-rt-cpu-ubuntu-bionic__x86_64/g" silent.cfg && \    
     ./install.sh -s silent.cfg --ignore-signature && \
-    rm -Rf $TEMP_DIR $INSTALL_DIR/install_dependencies $INSTALL_DIR/uninstall* /tmp/* $DL_INSTALL_DIR/documentation $DL_INSTALL_DIR/inference_engine/samples
+    rm -Rf $TEMP_DIR $INSTALL_DIR/install_dependencies $INSTALL_DIR/uninstall* /tmp/* $DL_INSTALL_DIR/documentation $DL_INSTALL_DIR/inference_engine/samples \
+    $DL_INSTALL_DIR/demo $DL_INSTALL_DIR/model_optimizer $DL_INSTALL_DIR/open_model_zoo $DL_INSTALL_DIR/tools \
+    $INSTALL_DIR/python/python2.7 $INSTALL_DIR/python/python3.4 $INSTALL_DIR/python/python3.5 $INSTALL_DIR/python/python3.7 \
+    $INSTALL_DIR/openvino_toolkit_uninstaller
+
 
 ENV HDDL_INSTALL_DIR="$DL_INSTALL_DIR/inference_engine/external/hddl"
 ENV PYTHONPATH="$INSTALL_DIR/python/python3.6:$INSTALL_DIR/python/python3"
 ENV LD_LIBRARY_PATH="$DL_INSTALL_DIR/inference_engine/external/tbb/lib:$DL_INSTALL_DIR/inference_engine/external/mkltiny_lnx/lib:$DL_INSTALL_DIR/inference_engine/external/hddl/lib:$DL_INSTALL_DIR/inference_engine/lib/intel64:$DL_INSTALL_DIR/ngraph/lib"
-RUN rm -rf $DL_INSTALL_DIR/demo $DL_INSTALL_DIR/model_optimizer $DL_INSTALL_DIR/open_model_zoo $DL_INSTALL_DIR/tools \
-           $INSTALL_DIR/python/python2.7 $INSTALL_DIR/python/python3.4 $INSTALL_DIR/python/python3.5 $INSTALL_DIR/python/python3.7 \
-           $INSTALL_DIR/openvino_toolkit_uninstaller 
 
 WORKDIR /ie-serving-py
 
