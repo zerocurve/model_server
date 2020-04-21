@@ -47,6 +47,10 @@ def pytest_addoption(parser):
         "--test_dir", action="store", default="/tmp/ovms_models",
         help="location where models and test data should be downloaded"
     )
+    parser.addoption(
+        "--target_device", action="store", default="CPU",
+        help="device on which OVMS will perform inference"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -58,6 +62,11 @@ def get_image(request):
 def get_test_dir(request):
     os.makedirs(request.config.getoption("--test_dir"), exist_ok=True)
     return request.config.getoption("--test_dir")
+
+
+@pytest.fixture(scope="session")
+def target_device(request):
+    return request.config.getoption("--target_device")
 
 
 @pytest.fixture(scope="session")

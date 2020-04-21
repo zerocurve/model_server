@@ -22,7 +22,7 @@ from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
 
 @pytest.fixture(scope="class")
-def start_server_single_model(request, get_image, get_test_dir,
+def start_server_single_model(request, get_image, target_device, get_test_dir,
                               get_docker_context):
 
     client = get_docker_context
@@ -36,6 +36,7 @@ def start_server_single_model(request, get_image, get_test_dir,
               "--model_name resnet " \
               "--model_path /opt/ml/resnet_V1_50 " \
               "--port " + str(grpc_port) + " --rest_port " + str(rest_port) + \
+              " --target_device " + target_device + \
               " --plugin_config " \
               "\"{\\\"CPU_THROUGHPUT_STREAMS\\\": " \
               "\\\"CPU_THROUGHPUT_AUTO\\\"}\""
@@ -63,8 +64,8 @@ def start_server_single_model(request, get_image, get_test_dir,
 
 
 @pytest.fixture(scope="class")
-def start_server_with_mapping(request, get_image, get_test_dir,
-                              get_docker_context):
+def start_server_with_mapping(request, get_image, target_device,
+                              get_test_dir, get_docker_context):
     shutil.copyfile('tests/functional/mapping_config.json',
                     get_test_dir + '/saved_models/'
                                    'age-gender-recognition-retail-0013/1/'
@@ -79,7 +80,8 @@ def start_server_with_mapping(request, get_image, get_test_dir,
     command = "/ie-serving-py/start_server.sh ie_serving model " \
               "--model_name age_gender " \
               "--model_path /opt/ml/age-gender-recognition-retail-0013 " \
-              "--port {} --rest_port {}".format(grpc_port, rest_port)
+              "--port {} --rest_port {} --target_device {}".format(grpc_port, rest_port,
+                                                                   target_device)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-py-test-2-out-{}'.

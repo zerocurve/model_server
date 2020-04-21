@@ -93,7 +93,7 @@ def convert_model(client,
     ])
 
     client.containers.run(image=image,
-                          name='convert-model-{}'.format(get_tests_suffix()),
+                          name='convert-model-{}'.format(model_name),
                           volumes=volumes,
                           user=user_id,
                           command=command)

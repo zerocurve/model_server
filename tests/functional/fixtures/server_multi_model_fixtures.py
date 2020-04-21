@@ -24,8 +24,8 @@ from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
 @pytest.fixture(scope="session")
 def start_server_multi_model(request, get_docker_network, start_minio_server,
-                             get_minio_server_s3, get_image, get_test_dir,
-                             get_docker_context):
+                             get_minio_server_s3, get_image, target_device,
+                             get_test_dir, get_docker_context):
 
     shutil.copyfile('tests/functional/config.json',
                     get_test_dir + '/saved_models/config.json')
@@ -55,6 +55,7 @@ def start_server_multi_model(request, get_docker_network, start_minio_server,
 
     grpc_port, rest_port = get_ports_for_fixture(port_suffix="07")
 
+    # TODO: handle target device
     command = "/ie-serving-py/start_server.sh ie_serving config " \
               "--config_path /opt/ml/config.json --port {} " \
               "--rest_port {} --grpc_workers 2 --rest_workers 2".\

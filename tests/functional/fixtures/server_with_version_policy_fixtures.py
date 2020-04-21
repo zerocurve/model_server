@@ -24,8 +24,8 @@ from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
 
 @pytest.fixture(scope="class")
-def start_server_model_ver_policy(request, get_image, get_test_dir,
-                                  get_docker_context):
+def start_server_model_ver_policy(request, get_image, target_device,
+                                  get_test_dir, get_docker_context):
     shutil.copyfile('tests/functional/model_version_policy_config.json',
                     get_test_dir +
                     '/saved_models/model_ver_policy_config.json')
@@ -40,6 +40,7 @@ def start_server_model_ver_policy(request, get_image, get_test_dir,
 
     grpc_port, rest_port = get_ports_for_fixture(port_suffix="18")
 
+    # TODO: handle target device
     command = "/ie-serving-py/start_server.sh ie_serving config " \
               "--config_path /opt/ml/model_ver_policy_config.json " \
               "--port {} --rest_port {}".format(grpc_port, rest_port)

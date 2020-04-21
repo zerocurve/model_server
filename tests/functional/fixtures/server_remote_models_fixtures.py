@@ -24,8 +24,8 @@ from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
 
 @pytest.fixture(scope="class")
-def start_server_single_model_from_gc(request, get_image, get_test_dir,
-                                      get_docker_context):
+def start_server_single_model_from_gc(request, get_image, target_device,
+                                      get_test_dir, get_docker_context):
     client = get_docker_context
 
     grpc_port, rest_port = get_ports_for_fixture(port_suffix="08")
@@ -34,8 +34,8 @@ def start_server_single_model_from_gc(request, get_image, get_test_dir,
               "--model_name resnet " \
               "--model_path " \
               "gs://public-artifacts/intelai_public_models/resnet_50_i8/ " \
-              "--port " + str(grpc_port) + " --target_device CPU --nireq 4" \
-              " --plugin_config " \
+              "--port " + str(grpc_port) + " --target_device " + target_device + \
+              " --nireq 4 --plugin_config " \
               "\"{\\\"CPU_THROUGHPUT_STREAMS\\\": \\\"2\\\", " \
               "\\\"CPU_THREADS_NUM\\\": \\\"4\\\"}\""
     envs = ['https_proxy=' + os.getenv('https_proxy', "")]
@@ -57,8 +57,8 @@ def start_server_single_model_from_gc(request, get_image, get_test_dir,
 
 
 @pytest.fixture(scope="class")
-def start_server_single_model_from_s3(request, get_image, get_test_dir,
-                                      get_docker_context):
+def start_server_single_model_from_s3(request, get_image, target_device,
+                                      get_test_dir, get_docker_context):
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
     AWS_REGION = os.getenv('AWS_REGION')
@@ -73,7 +73,7 @@ def start_server_single_model_from_s3(request, get_image, get_test_dir,
     command = "/ie-serving-py/start_server.sh ie_serving model " \
               "--model_name resnet " \
               "--model_path s3://inference-test-aipg/resnet_v1_50 " \
-              "--port {}".format(grpc_port)
+              "--port {} --target_device {}".format(grpc_port, target_device)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-py-test-single-s3-{}'.
@@ -205,7 +205,8 @@ def get_minio_server_s3(request, get_image, get_test_dir, start_minio_server):
 @pytest.fixture(scope="class")
 def start_server_single_model_from_minio(request, get_docker_network,
                                          get_minio_server_s3, get_image,
-                                         get_test_dir, get_docker_context):
+                                         target_device, get_test_dir,
+                                         get_docker_context):
 
     network = get_docker_network
 
@@ -232,7 +233,7 @@ def start_server_single_model_from_minio(request, get_docker_network,
     command = "/ie-serving-py/start_server.sh ie_serving model " \
               "--model_name resnet " \
               "--model_path s3://inference/resnet_v1_50 " \
-              "--port {}".format(grpc_port)
+              "--port {} --target_device {}".format(grpc_port, target_device)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-test-'

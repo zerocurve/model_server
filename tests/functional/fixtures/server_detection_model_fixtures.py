@@ -21,6 +21,7 @@ from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
 @pytest.fixture(scope="class")
 def start_server_face_detection_model_auto_shape(request, get_image,
+                                                 target_device,
                                                  get_test_dir,
                                                  get_docker_context):
     client = get_docker_context
@@ -33,8 +34,11 @@ def start_server_face_detection_model_auto_shape(request, get_image,
     command = "/ie-serving-py/start_server.sh ie_serving model " \
               "--model_name face_detection --model_path " \
               "/opt/ml/face-detection-retail-0004 " \
-              "--port {} --rest_port {} --shape auto " \
-              "--grpc_workers 4 --nireq 4".format(grpc_port, rest_port)
+              "--port {grpc_port} --rest_port {rest_port} --shape auto " \
+              "--target_device {target_device} " \
+              "--grpc_workers 4 --nireq 4".format(grpc_port=grpc_port,
+                                                  rest_port=rest_port,
+                                                  target_device=target_device)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-py-test-auto-shape-{}'.
@@ -55,6 +59,7 @@ def start_server_face_detection_model_auto_shape(request, get_image,
 
 @pytest.fixture(scope="class")
 def start_server_face_detection_model_named_shape(request, get_image,
+                                                  target_device,
                                                   get_test_dir,
                                                   get_docker_context):
     client = get_docker_context
@@ -70,7 +75,7 @@ def start_server_face_detection_model_named_shape(request, get_image,
               "--port " + str(grpc_port) + " --rest_port " + str(rest_port) + \
               " --shape \"{\\\"data\\\": \\\"(1, 3, 600, 600)\\\"}\" " \
               "--grpc_workers 4 --rest_workers 2 " \
-              "--nireq 2"
+              "--nireq 2 --target_device " + str(target_device)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-py-test-named-shape-{}'.
@@ -91,6 +96,7 @@ def start_server_face_detection_model_named_shape(request, get_image,
 
 @pytest.fixture(scope="class")
 def start_server_face_detection_model_nonamed_shape(request, get_image,
+                                                    target_device,
                                                     get_test_dir,
                                                     get_docker_context):
     client = get_docker_context
@@ -103,9 +109,12 @@ def start_server_face_detection_model_nonamed_shape(request, get_image,
     command = "/ie-serving-py/start_server.sh ie_serving model " \
               "--model_name face_detection --model_path " \
               "/opt/ml/face-detection-retail-0004 " \
-              "--port {} --rest_port {} " \
+              "--port {grpc_port} --rest_port {rest_port} " \
               "--shape \"(1, 3, 600, 600)\" " \
-              "--rest_workers 4 --nireq 2".format(grpc_port, rest_port)
+              "--target_device {target_device} " \
+              "--rest_workers 4 --nireq 2".format(grpc_port=grpc_port,
+                                                  rest_port=rest_port,
+                                                  target_device=target_device)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-py-test-nonamed-'

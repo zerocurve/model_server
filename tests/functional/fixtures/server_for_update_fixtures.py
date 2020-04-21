@@ -21,8 +21,8 @@ from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
 
 @pytest.fixture(scope="function")
-def start_server_update_flow_latest(request, get_image, get_test_dir,
-                                    get_docker_context):
+def start_server_update_flow_latest(request, get_image, target_device,
+                                    get_test_dir, get_docker_context):
     client = get_docker_context
     path_to_mount = get_test_dir + '/saved_models'
     update_test_dir = path_to_mount + '/update-{}/'.format(get_tests_suffix())
@@ -36,8 +36,9 @@ def start_server_update_flow_latest(request, get_image, get_test_dir,
 
     command = "/ie-serving-py/start_server.sh ie_serving model " \
               "--model_name resnet --model_path /opt/ml/update-{} " \
+              "--target_device {} " \
               "--port {} --rest_port {} --grpc_workers 1 --nireq 1".\
-              format(get_tests_suffix(), grpc_port, rest_port)
+              format(get_tests_suffix(), target_device, grpc_port, rest_port)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-py-test-update-'
@@ -58,8 +59,8 @@ def start_server_update_flow_latest(request, get_image, get_test_dir,
 
 
 @pytest.fixture(scope="function")
-def start_server_update_flow_specific(request, get_image, get_test_dir,
-                                      get_docker_context):
+def start_server_update_flow_specific(request, get_image, target_device,
+                                      get_test_dir, get_docker_context):
     client = get_docker_context
     path_to_mount = get_test_dir + '/saved_models'
     update_test_dir = path_to_mount + '/update-{}/'.format(get_tests_suffix())
@@ -76,7 +77,8 @@ def start_server_update_flow_specific(request, get_image, get_test_dir,
               '/opt/ml/update-' + get_tests_suffix() +  \
               ' --port ' + str(grpc_port) + ' --model_version_policy' \
               ' \'{"specific": { "versions":[1, 3, 4] }}\' ' \
-              '--rest_port ' + str(rest_port)
+              '--rest_port ' + str(rest_port) + \
+              ' --target_device ' + str(target_device)
 
     container = client.containers.run(image=get_image, detach=True,
                                       name='ie-serving-py-test-'
