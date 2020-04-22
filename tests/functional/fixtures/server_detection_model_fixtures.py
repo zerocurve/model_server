@@ -15,6 +15,8 @@
 #
 
 import pytest
+
+from utils.container import ovms_docker_run
 from utils.model_management import wait_endpoint_setup
 from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
@@ -40,15 +42,16 @@ def start_server_face_detection_model_auto_shape(request, get_image,
                                                   rest_port=rest_port,
                                                   target_device=target_device)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-auto-shape-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(client, target_device, 
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-auto-shape-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -77,15 +80,16 @@ def start_server_face_detection_model_named_shape(request, get_image,
               "--grpc_workers 4 --rest_workers 2 " \
               "--nireq 2 --target_device " + str(target_device)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-named-shape-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(client, target_device, 
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-named-shape-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -116,15 +120,16 @@ def start_server_face_detection_model_nonamed_shape(request, get_image,
                                                   rest_port=rest_port,
                                                   target_device=target_device)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-nonamed-'
-                                      'shape-{}'.format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(client, target_device, 
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-nonamed-'
+                                'shape-{}'.format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)

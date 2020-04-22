@@ -15,6 +15,7 @@
 #
 
 import pytest
+from utils.container import ovms_docker_run
 from utils.model_management import wait_endpoint_setup
 from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
@@ -34,15 +35,16 @@ def start_server_batch_model(request, get_image, target_device,
               "--target_device {} " \
               "--port {} --rest_port {}".format(target_device, grpc_port, rest_port)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-batch-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(docker_client=client, target_device=target_device,
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-batch-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -67,15 +69,16 @@ def start_server_batch_model_2out(request, get_image, target_device,
               "--target_device {} " \
               "--port {} --rest_port {}".format(target_device, grpc_port, rest_port)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-batch-2out-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(docker_client=client, target_device=target_device,
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-batch-2out-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -100,15 +103,16 @@ def start_server_batch_model_auto(request, get_image, target_device,
               "--port {} --batch_size auto --rest_port {}".\
               format(target_device, grpc_port, rest_port)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-autobatch-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(docker_client=client, target_device=target_device,
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-autobatch-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -134,15 +138,17 @@ def start_server_batch_model_auto_2out(request, get_image, target_device,
               "--port {} --batch_size auto --rest_port {}".\
               format(target_device, grpc_port, rest_port)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-autobatch-'
-                                      '2out-{}'.format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(docker_client=client, target_device=target_device,
+                                image=get_image,
+                                detach=True,
+                                name='ie-serving-py-test-autobatch-'
+                                '2out-{}'.format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -168,15 +174,16 @@ def start_server_batch_model_bs4(request, get_image, target_device,
               "--batch_size 4 --rest_port {}".format(target_device,
                                                      grpc_port, rest_port)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-batch4-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(docker_client=client, image=get_image,
+                                detach=True, target_device=target_device,
+                                name='ie-serving-py-test-batch4-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -202,15 +209,16 @@ def start_server_batch_model_auto_bs4_2out(request, get_image, target_device,
               "--port {} --batch_size 4 --rest_port {}".\
               format(target_device, grpc_port, rest_port)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-batch4-'
-                                      '2out-{}'.format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(docker_client=client, target_device=target_device,
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-batch4-'
+                                '2out-{}'.format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)

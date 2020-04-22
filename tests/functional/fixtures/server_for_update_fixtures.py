@@ -16,6 +16,7 @@
 
 import pytest
 import shutil
+from utils.container import ovms_docker_run
 from utils.model_management import wait_endpoint_setup
 from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
@@ -40,16 +41,17 @@ def start_server_update_flow_latest(request, get_image, target_device,
               "--port {} --rest_port {} --grpc_workers 1 --nireq 1".\
               format(get_tests_suffix(), target_device, grpc_port, rest_port)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-update-'
-                                      'latest-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(client, target_device, 
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-update-'
+                                'latest-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
@@ -80,16 +82,17 @@ def start_server_update_flow_specific(request, get_image, target_device,
               '--rest_port ' + str(rest_port) + \
               ' --target_device ' + str(target_device)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-'
-                                           'update-specific-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port,
-                                             '{}/tcp'.format(rest_port):
-                                             rest_port},
-                                      remove=True, volumes=volumes_dict,
-                                      command=command)
+    container = ovms_docker_run(client, target_device, 
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-'
+                                     'update-specific-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port,
+                                       '{}/tcp'.format(rest_port):
+                                       rest_port},
+                                remove=True, volumes=volumes_dict,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)

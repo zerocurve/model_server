@@ -16,7 +16,10 @@
 
 import shutil
 import os
+
 import pytest
+
+from utils.container import ovms_docker_run
 from utils.model_management import wait_endpoint_setup
 from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
@@ -42,7 +45,8 @@ def start_server_single_model(request, get_image, target_device, get_test_dir,
               "\\\"CPU_THROUGHPUT_AUTO\\\"}\""
 
     container = \
-        client.containers.run(
+        ovms_docker_run(
+            docker_client=client,
             image=get_image,
             detach=True,
             name='ie-serving-py-test-single-{}'.format(get_tests_suffix()),
@@ -83,7 +87,7 @@ def start_server_with_mapping(request, get_image, target_device,
               "--port {} --rest_port {} --target_device {}".format(grpc_port, rest_port,
                                                                    target_device)
 
-    container = client.containers.run(image=get_image, detach=True,
+    container = ovms_docker_run(docker_client=client, image=get_image, detach=True,
                                       name='ie-serving-py-test-2-out-{}'.
                                       format(get_tests_suffix()),
                                       ports={'{}/tcp'.format(grpc_port):

@@ -17,9 +17,11 @@
 import os
 
 import boto3
-import pytest
-from utils.model_management import (wait_endpoint_setup, minio_condition)
 from botocore.client import Config
+import pytest
+
+from utils.container import ovms_docker_run
+from utils.model_management import (wait_endpoint_setup, minio_condition)
 from utils.parametrization import get_tests_suffix, get_ports_for_fixture
 
 
@@ -39,7 +41,7 @@ def start_server_single_model_from_gc(request, get_image, target_device,
               "\"{\\\"CPU_THROUGHPUT_STREAMS\\\": \\\"2\\\", " \
               "\\\"CPU_THREADS_NUM\\\": \\\"4\\\"}\""
     envs = ['https_proxy=' + os.getenv('https_proxy', "")]
-    container = client.containers.run(image=get_image, detach=True,
+    container = ovms_docker_run(client, target_device, image=get_image, detach=True,
                                       name='ie-serving-py-test-single-gs-{}'.
                                       format(get_tests_suffix()),
                                       ports={'{}/tcp'.format(grpc_port):
@@ -75,14 +77,15 @@ def start_server_single_model_from_s3(request, get_image, target_device,
               "--model_path s3://inference-test-aipg/resnet_v1_50 " \
               "--port {} --target_device {}".format(grpc_port, target_device)
 
-    container = client.containers.run(image=get_image, detach=True,
-                                      name='ie-serving-py-test-single-s3-{}'.
-                                      format(get_tests_suffix()),
-                                      ports={'{}/tcp'.format(grpc_port):
-                                             grpc_port},
-                                      remove=True,
-                                      environment=envs,
-                                      command=command)
+    container = ovms_docker_run(client, target_device, 
+                                image=get_image, detach=True,
+                                name='ie-serving-py-test-single-s3-{}'.
+                                format(get_tests_suffix()),
+                                ports={'{}/tcp'.format(grpc_port):
+                                       grpc_port},
+                                remove=True,
+                                environment=envs,
+                                command=command)
     request.addfinalizer(container.kill)
 
     running = wait_endpoint_setup(container)
