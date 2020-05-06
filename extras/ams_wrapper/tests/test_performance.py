@@ -15,6 +15,9 @@
 #
 import pytest
 import logging
+import requests
+
+from tests.functional.fixtures.ams_fixtures import ams_object_detection_model_endpoint
 
 
 class TestPerformance:
@@ -30,12 +33,27 @@ class TestPerformance:
         }
     }
 
+    @staticmethod
+    def inference(image):
+        with open(image, mode='rb') as image_file:
+            image_bytes = image_file.read()
+        response = requests.post(ams_object_detection_model_endpoint,
+                                 headers={'Content-Type': 'image/png',
+                                          'Content-Length': str(len(image))},
+                                 data=image_bytes)
+        return response
+
     @pytest.mark.parametrize("model", ["vehicle-detection-adas-0002"], ids=["vehicle detection"])
     @pytest.mark.parametrize("config", [4, 32], ids=["4 cores", "32 cores"])
     def test_performance_simple_for_given_model(self, model, config):
         """
         <b>Description:</b>
         Checks if AMS results are close to OVMS and OpenVino benchmark app.
+
+        <b>Assumptions:</b>
+        - OpenVino 2020.2 up and running
+        - AMS wrapper up and running
+        - OVMS with model: vehicle-detection-adas-0002 - up and running
 
         <b>Input data:</b>
         - AMS
