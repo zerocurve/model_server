@@ -21,7 +21,7 @@ import logging
 import requests
 import datetime
 
-ROOT_PATH = "/root/model-server"
+ROOT_PATH = "/root/model_server"
 DATASET_PATH = os.path.join(ROOT_PATH, "tests", "functional", "fixtures", "test_images")
 
 CONFIG_4 = {"config": 4,
