@@ -32,7 +32,7 @@ CONFIG_32 = {"config": 32,
 
 
 @pytest.fixture(scope="function", params=[CONFIG_4, CONFIG_32])
-def ams(request, config):
+def ams(request):
     cmd = ["docker", "run", "--cpus={}".format(request.param["config"]), "--name {}".format(request.param["name"]),
            "-d", "-p 5000:5000", "-p 9000:9000", "ams", "/ams_wrapper/start_ams.sh",
            "--ams_port=5000", "--ovms_port=8080"]
