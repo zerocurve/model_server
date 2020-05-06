@@ -14,11 +14,37 @@
 # limitations under the License.
 #
 import os
+import subprocess
 
 import pytest
 import logging
 import requests
 import datetime
+import ie_serving
+
+ROOT_PATH = os.path.dirname(os.path.dirname(ie_serving.__file__))
+DATASET_PATH = os.path.join(ROOT_PATH, "tests", "functional", "fixtures", "test_images")
+
+CONFIG_4 = {"config": 4,
+            "name": "ams_4_cores"}
+
+CONFIG_32 = {"config": 32,
+            "name": "ams_32_cores"}
+
+
+@pytest.mark.parametrize("config", [CONFIG_4, CONFIG_32], ids=["4 cores", "32 cores"])
+@pytest.fixture(scope="function")
+def ams(request, config):
+    cmd = ["docker", "run", "--cpus={}".format(config["config"]), "--name {}".format(config["name"]),
+           "-d", "-p 5000:5000", "-p 9000:9000", "ams", "/ams_wrapper/start_ams.sh",
+           "--ams_port=5000", "--ovms_port=8080"]
+    subprocess.run(cmd)
+
+    def finalizer():
+        cmd = ["docker", "rm", "-f", config["name"]]
+        subprocess.run(cmd)
+
+    request.addfinalizer(finalizer)
 
 
 class TestPerformance:
@@ -35,10 +61,15 @@ class TestPerformance:
     }
 
     @staticmethod
+    def run_clients():
+        cmd = [""]
+        subprocess.run(cmd)
+
+    @staticmethod
     def inference(image, iterations: int):
         responses = []
         for num in range(iterations):
-            with open(image, mode='rb') as image_file:
+            with open(os.path.join(DATASET_PATH, image), mode='rb') as image_file:
                 image_bytes = image_file.read()
                 start_time = datetime.datetime.now()
                 response = requests.post("http://localhost:5000/vehicleDetection",
@@ -52,7 +83,6 @@ class TestPerformance:
         return responses
 
     @pytest.mark.parametrize("model", ["vehicle-detection-adas-0002"], ids=["vehicle detection"])
-    @pytest.mark.parametrize("config", [4, 32], ids=["4 cores", "32 cores"])
     def test_performance_simple_for_given_model(self, model, config):
         """
         <b>Description:</b>
@@ -72,10 +102,10 @@ class TestPerformance:
         Test passes when AMS has results close to OVMS and OpenVino benchmark app.
 
         <b>Steps:</b>
-        1. Prepare model for AMS - model param.
-        2. Prepare config.json for AMS - config param.
-        3. Run OpenVino benchmark app and get response time.
-        4. Run OVMS and get response time.
+        1. Prepare model for AMS - model param - already loaded in ams container.
+        2. Prepare config.json for AMS - config param - currently there is only one model - no config.
+        3. Run OpenVino benchmark app and get response time - TBD.
+        4. Run OVMS and get response time - TBD.
         5. Run AMS and get response time.
         6. Compare response time for those services.
         7. Save results.
@@ -84,9 +114,9 @@ class TestPerformance:
         logging.info("Prepare config.json for AMS - config param.")
         logging.info("Run OpenVino benchmark app and get response time.")
         logging.info("Run OVMS and get response time.")
+
         logging.info("Run AMS and get response time.")
-        image_path = "/root/model_server/tests/functional/fixtures/test_images/single_car_small.png"
-        responses = self.inference(image=image_path, iterations=100)
+        responses = self.inference(image="single_car_small.png", iterations=100)
         for rsp in responses:
             print("Processing time: {} ms, \n speed: {} fps".format(round(rsp["duration"], 2),
                                                                     round(1000/rsp["duration"], 2)))
