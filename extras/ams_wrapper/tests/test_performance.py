@@ -20,9 +20,8 @@ import pytest
 import logging
 import requests
 import datetime
-import ie_serving
 
-ROOT_PATH = os.path.dirname(os.path.dirname(ie_serving.__file__))
+ROOT_PATH = "/root/model-server"
 DATASET_PATH = os.path.join(ROOT_PATH, "tests", "functional", "fixtures", "test_images")
 
 CONFIG_4 = {"config": 4,
