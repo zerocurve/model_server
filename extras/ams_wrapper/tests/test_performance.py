@@ -37,11 +37,9 @@ def ams(request):
            "-d", "-p", "5000:5000", "-p", "9000:9000", "ams", "/ams_wrapper/start_ams.sh",
            "--ams_port=5000", "--ovms_port=8080"]
     subprocess.run(cmd)
-    import time
-    time.sleep(30)
 
     def finalizer():
-        cmd = ["docker", "rm", "-f", config["name"]]
+        cmd = ["docker", "rm", "-f", request.param["name"]]
         subprocess.run(cmd)
 
     request.addfinalizer(finalizer)
