@@ -84,7 +84,7 @@ class TestPerformance:
         return responses
 
     @pytest.mark.parametrize("model", ["vehicle-detection-adas-0002"], ids=["vehicle detection"])
-    def test_performance_simple_for_given_model(self, model):
+    def test_performance_simple_for_given_model(self, model, ams):
         """
         <b>Description:</b>
         Checks if AMS results are close to OVMS and OpenVino benchmark app.
