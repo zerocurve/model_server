@@ -31,10 +31,9 @@ CONFIG_32 = {"config": 32,
             "name": "ams_32_cores"}
 
 
-@pytest.mark.parametrize("config", [CONFIG_4, CONFIG_32], ids=["4 cores", "32 cores"])
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="function", params=[CONFIG_4, CONFIG_32])
 def ams(request, config):
-    cmd = ["docker", "run", "--cpus={}".format(config["config"]), "--name {}".format(config["name"]),
+    cmd = ["docker", "run", "--cpus={}".format(request.param["config"]), "--name {}".format(request.param["name"]),
            "-d", "-p 5000:5000", "-p 9000:9000", "ams", "/ams_wrapper/start_ams.sh",
            "--ams_port=5000", "--ovms_port=8080"]
     subprocess.run(cmd)
